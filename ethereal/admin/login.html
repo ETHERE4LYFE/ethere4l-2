@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETHERE4L | Admin Access</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body class="admin-login-body">
+    <div class="login-container">
+        <h2>CMD_CENTER // ETHERE4L</h2>
+        <form id="login-form">
+            <input type="password" id="admin-pass" placeholder="Access Key" required autofocus>
+            <button type="submit">AUTHENTICATE</button>
+        </form>
+        <p id="error-msg" class="error-text"></p>
+    </div>
+
+    <script type="module">
+        import { ENDPOINTS } from '../assets/js/config.js';
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('admin-pass').value;
+            const btn = e.target.querySelector('button');
+            const errorMsg = document.getElementById('error-msg');
+            console.log('HASH ENV:', ADMIN_PASS_HASH);
+            console.log('JWT ENV:', JWT_SECRET);
+
+            
+
+            btn.disabled = true;
+            btn.innerText = "VERIFYING...";
+            errorMsg.innerText = "";
+
+            try {
+                const res = await fetch(ENDPOINTS.LOGIN, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                const data = await res.json();
+
+                if (data.success && data.token) {
+                    localStorage.setItem('admin_token', data.token);
+                    window.location.href = 'index.html';
+                } else {
+                    throw new Error('Credenciales inválidas');
+                }
+            } catch (err) {
+                errorMsg.innerText = "ACCESO DENEGADO";
+                btn.disabled = false;
+                btn.innerText = "AUTHENTICATE";
+            }
+        });
+    </script>
+</body>
+</html>

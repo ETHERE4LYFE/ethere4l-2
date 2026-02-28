@@ -1,0 +1,142 @@
+/* =========================================
+   RESPONSIVE DESIGN - ETHERE4L
+   Breakpoints: Tablet (1024px) & Mobile (768px)
+   ========================================= */
+
+/* --- AJUSTES GENERALES --- */
+@media screen and (max-width: 1024px) {
+    .container, .checkout-container, .container-detalle {
+        width: 95%;
+        padding: 0 10px;
+    }
+}
+
+/* --- MÓVIL (Max 768px) --- */
+@media screen and (max-width: 768px) {
+
+    /* 1. NAVBAR & MENÚ HAMBURGUESA */
+    .navbar {
+        padding: 15px 20px;
+        justify-content: space-between;
+        position: relative;
+    }
+
+    /* Mostrar botón hamburguesa (Asegúrate de tener un icono dentro, ej: fa-bars) */
+    #mobile-menu {
+        display: block !important; /* Forzamos visibilidad */
+        font-size: 1.5rem;
+        cursor: pointer;
+        order: 3; /* A la derecha */
+        z-index: 1001;
+    }
+
+    /* El menú de enlaces (oculto por defecto) */
+    .nav-list {
+        display: none; /* Oculto */
+        position: absolute;
+        top: 100%; /* Justo debajo del navbar */
+        left: 0;
+        width: 100%;
+        background-color: #fff; /* Fondo sólido para tapar contenido */
+        flex-direction: column;
+        align-items: center;
+        padding: 20px 0;
+        box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+        z-index: 1000;
+        border-top: 1px solid #eee;
+    }
+
+    /* CLASE ACTIVE (Añadida por JS main.js) */
+    .nav-list.active {
+        display: flex !important;
+        animation: slideDown 0.3s ease forwards;
+    }
+
+    .nav-list li {
+        margin: 15px 0;
+    }
+
+    /* 2. CARRITO ICONO EN NAVBAR */
+    .cart-icon-nav {
+        order: 2; /* En medio o a la derecha junto a la hamburguesa */
+        margin-right: 20px;
+    }
+
+    /* 3. PÁGINA DE PRODUCTO */
+    .product-wrapper {
+        flex-direction: column; /* Apilar imagen y texto */
+        margin-top: 20px;
+    }
+
+    .product-gallery {
+        width: 100%;
+        margin-bottom: 20px;
+    }
+
+    .product-info {
+        width: 100%;
+        padding: 0 10px;
+    }
+
+    .product-title {
+        font-size: 1.5rem;
+    }
+
+    /* 4. GRID DE PRODUCTOS (CATÁLOGO) */
+    .products-grid {
+        grid-template-columns: 1fr 1fr; /* 2 columnas en móvil */
+        gap: 10px;
+    }
+    
+    /* 5. CHECKOUT (PEDIDO.HTML) */
+    .checkout-container {
+        grid-template-columns: 1fr; /* Una sola columna */
+        gap: 30px;
+    }
+
+    .checkout-summary {
+        order: 2; /* Resumen abajo */
+    }
+
+    .checkout-form {
+        order: 1; /* Formulario arriba */
+    }
+    
+    /* Ajuste de Modales */
+    .modal-content {
+        width: 95%;
+        margin: 10% auto;
+    }
+
+    /* 6. NORMALIZACIÓN DE IMÁGENES EN MÓVIL */
+    /* Mantener el aspect-ratio también en móvil */
+    .img-container {
+        aspect-ratio: 4 / 5; /* Consistencia en todas las vistas */
+    }
+
+    .main-image-container {
+        aspect-ratio: 4 / 5; /* Mismo ratio en detalle */
+        height: auto !important; /* Eliminar cualquier height fijo */
+    }
+
+    .related-card img {
+        aspect-ratio: 4 / 5; /* Mismo ratio en relacionados */
+    }
+}
+
+/* --- MÓVIL PEQUEÑO (Max 480px) --- */
+@media screen and (max-width: 480px) {
+    .products-grid {
+        grid-template-columns: 1fr; /* 1 columna si es muy pequeño */
+    }
+    
+    .logo-text-gothic {
+        font-size: 1.2rem; /* Logo más pequeño */
+    }
+}
+
+/* ANIMACIONES */
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}

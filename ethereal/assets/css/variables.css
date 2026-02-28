@@ -1,0 +1,6 @@
+:root {
+    --blanco-fondo: #ffffff;
+    --negro-texto: #000000;
+    --fuente-principal: 'Cinzel', serif; 
+    --transicion-zoom: transform 0.5s cubic-bezier(0.3, 0, 0.2, 1);
+}

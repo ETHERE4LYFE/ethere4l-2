@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard | ETHERE4L</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/admin.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <script>
+  if (!localStorage.getItem('admin_token')) {
+    window.location.href = 'login.html';
+  }
+</script>
+
+    <div class="admin-layout">
+        <aside class="sidebar">
+            <div class="brand">ETHERE4L <span>OPS</span></div>
+            <nav>
+                <a href="#" class="active"><i class="fa-solid fa-list"></i> Pedidos</a>
+                <a href="#" class="disabled"><i class="fa-solid fa-chart-line"></i> Analytics (F2)</a>
+                <a href="#" class="disabled"><i class="fa-solid fa-box"></i> Inventario (F4)</a>
+            </nav>
+            <button id="btn-logout" class="btn-logout"><i class="fa-solid fa-power-off"></i> Salir</button>
+        </aside>
+
+        <main class="content">
+            <header class="top-bar">
+                <h1>Visión General</h1>
+                <button id="btn-refresh" class="btn-secondary"><i class="fa-solid fa-rotate"></i> Actualizar</button>
+            </header>
+
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <h3>Ventas Totales</h3>
+                    <p id="kpi-total">$0.00</p>
+                </div>
+                <div class="kpi-card">
+                    <h3>Pedidos Recientes</h3>
+                    <p id="kpi-count">0</p>
+                </div>
+                <div class="kpi-card">
+                    <h3>Pendientes Envío</h3>
+                    <p id="kpi-pending" class="warning">0</p>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table id="orders-table">
+                    <thead>
+                        <tr>
+                            <th>ID / Fecha</th>
+                            <th>Cliente</th>
+                            <th>Items</th>
+                            <th>Total</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="6" class="loading-text">Cargando datos...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <div id="tracking-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Asignar Guía de Envío</h3>
+            <p>Esto enviará un correo automático al cliente.</p>
+            <input type="hidden" id="modal-order-id">
+            <div class="form-group">
+                <label>Número de Rastreo (J&T / Private)</label>
+                <input type="text" id="tracking-input" placeholder="Ej: JNT123456789" class="input-full">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+                <button class="btn-primary" onclick="submitTracking()">Confirmar Envío</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="../assets/js/admin.js"></script>
+</body>
+</html>
