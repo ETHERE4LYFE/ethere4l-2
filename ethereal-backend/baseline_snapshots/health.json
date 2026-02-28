@@ -1,0 +1,1 @@
+{"status":"degraded","db":"error","dbPersistent":false,"stripe":"configured","email":"configured","uptime":18,"memory":{"rss":"57 MB","heapUsed":"21 MB","heapTotal":"23 MB"},"node":"v20.11.1","version":"2.3.0","cors":{"originsCount":7,"preflightEnabled":true},"cookieDomain":"not set","timestamp":"2026-02-28T20:51:55.229Z"}
