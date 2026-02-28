@@ -56,93 +56,19 @@ const {
     getMagicLinkEmail
 } = require('./utils/emailTemplates');
 
+// =========================================================
+// EXTRACTED MODULES (Phase 1 Refactor)
+// =========================================================
+const { stripe, JWT_SECRET, ADMIN_PASS_HASH, STRIPE_WEBHOOK_SECRET, IS_PRODUCTION, PORT, FRONTEND_URL, COOKIE_DOMAIN, RESEND_API_KEY, ADMIN_EMAIL, SENDER_EMAIL, RAILWAY_VOLUME, isRailway } = require('./src/config/env');
+const { COOKIE_NAME, getSessionCookieOptions, getClearCookieOptions } = require('./src/config/cookie');
+const { CUSTOMER_SESSION_DAYS, BACKEND_VERSION } = require('./src/config/constants');
+const { corsOptions, UNIQUE_ORIGINS } = require('./src/config/cors');
+const { logger, incrementErrorCount, getErrorCountLastHour } = require('./src/utils/logger');
+const { parseSafeNumber, generateOrderToken, hashToken, validateEmail, getStatusDescription } = require('./src/utils/helpers');
 
-// ===============================
-// 0. CONFIGURACIÓN DE SEGURIDAD
-// ===============================
-const stripe = Stripe((process.env.STRIPE_SECRET_KEY || '').trim());
 
-const JWT_SECRET = (function() {
-    if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
-    if (process.env.NODE_ENV === 'production') {
-        throw new Error('❌ FATAL: JWT_SECRET is required in production. Set it in Railway environment variables.');
-    }
-    console.warn('⚠️ Usando JWT_SECRET de desarrollo. NO usar en producción.');
-    return 'secret_dev_key_change_in_prod';
-})();
 
-const ADMIN_PASS_HASH = process.env.ADMIN_PASS_HASH;
-const STRIPE_WEBHOOK_SECRET = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
 
-// ===============================
-// 0.0 COOKIE CONFIGURATION (FIXED)
-// ===============================
-const COOKIE_NAME = 'ethere4l_session';
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-
-// ✅ FIX 1: Cookie domain for Safari iOS cross-site support
-// Safari iOS REQUIRES explicit domain for SameSite=None cookies
-// to be accepted in cross-origin contexts (Netlify → Railway)
-const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || undefined;
-// Set COOKIE_DOMAIN=.api.ethere4l.com in Railway env vars
-
-function getSessionCookieOptions(maxAgeDays) {
-    var options = {
-        httpOnly: true,
-        secure: IS_PRODUCTION,
-        sameSite: IS_PRODUCTION ? 'None' : 'Lax',
-        path: '/',
-        maxAge: maxAgeDays * 24 * 60 * 60 * 1000
-    };
-
-    // ✅ FIX 1: Add domain in production for Safari iOS compatibility
-    if (IS_PRODUCTION && COOKIE_DOMAIN) {
-        options.domain = COOKIE_DOMAIN;
-    }
-
-    return options;
-}
-
-function getClearCookieOptions() {
-    var options = {
-        httpOnly: true,
-        secure: IS_PRODUCTION,
-        sameSite: IS_PRODUCTION ? 'None' : 'Lax',
-        path: '/'
-    };
-
-    // ✅ FIX 1: Must match domain used when setting the cookie
-    if (IS_PRODUCTION && COOKIE_DOMAIN) {
-        options.domain = COOKIE_DOMAIN;
-    }
-
-    return options;
-}
-
-// ===============================
-// 0.1 HELPERS
-// ===============================
-function parseSafeNumber(value, fallback = 0) {
-    if (typeof value === 'number' && !isNaN(value)) return value;
-    if (!value) return fallback;
-    const cleanString = String(value).replace(/[^0-9.]/g, '');
-    const number = parseFloat(cleanString);
-    return isNaN(number) ? fallback : number;
-}
-
-function generateOrderToken(orderId, email) {
-    return jwt.sign(
-        { o: orderId, e: email },
-        JWT_SECRET,
-        { expiresIn: '7d' }
-    );
-}
-
-const CUSTOMER_SESSION_DAYS = 180;
-
-function hashToken(token) {
-    return crypto.createHash('sha256').update(token).digest('hex');
-}
 
 function createCustomerSession(email, req) {
     const sessionId = uuidv4();
@@ -176,14 +102,7 @@ function createCustomerSession(email, req) {
     return token;
 }
 
-function validateEmail(email) {
-    if (!email || typeof email !== 'string') return false;
-    const trimmed = email.trim();
-    if (trimmed.length === 0 || trimmed.length > 254) return false;
-    if (/\s/.test(trimmed)) return false;
-    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
-    return emailRegex.test(trimmed);
-}
+
 
 // ================= CATÁLOGO ESTÁTICO =================
 let PRODUCTS_DB = [];
@@ -207,8 +126,7 @@ try {
 // ===============================
 // 1. DATABASE SETUP
 // ===============================
-const RAILWAY_VOLUME = '/app/data';
-const isRailway = fs.existsSync(RAILWAY_VOLUME);
+// RAILWAY_VOLUME and isRailway now imported from src/config/env
 const DATA_DIR = isRailway ? RAILWAY_VOLUME : path.join(__dirname, 'data');
 const DB_PATH = path.join(DATA_DIR, 'orders.db');
 
@@ -323,8 +241,8 @@ try {
 } catch (err) {
     console.error('❌ DB ERROR → SAFE MODE ACTIVO', err);
     db = {
-        prepare: () => ({ run: () => {}, get: () => null, all: () => [] }),
-        exec: () => {},
+        prepare: () => ({ run: () => { }, get: () => null, all: () => [] }),
+        exec: () => { },
         transaction: (fn) => fn
     };
 }
@@ -335,91 +253,12 @@ try {
 // ===============================
 const app = express();
 
-// ===============================
-// LOGGER (declared early — used by middleware below)
-// ===============================
-const LOG_DIR = isRailway ? path.join(RAILWAY_VOLUME, 'logs') : path.join(__dirname, 'logs');
-if (!fs.existsSync(LOG_DIR)) {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
-}
-const LOG_FILE = path.join(LOG_DIR, 'app.log');
+// logger, incrementErrorCount, getErrorCountLastHour now imported from src/utils/logger
 
-function writeLogToFile(level, message, context) {
-    const entry = {
-        timestamp: new Date().toISOString(),
-        level,
-        message,
-        context
-    };
-    try {
-        fs.appendFileSync(LOG_FILE, JSON.stringify(entry) + '\n');
-    } catch (e) { /* silent */ }
-}
-
-const logger = {
-    info: (msg, ctx = {}) => {
-        console.log(`[INFO] ${new Date().toISOString()} | ${msg} | ${JSON.stringify(ctx)}`);
-        writeLogToFile('INFO', msg, ctx);
-    },
-    warn: (msg, ctx = {}) => {
-        console.warn(`[WARN] ${new Date().toISOString()} | ${msg} | ${JSON.stringify(ctx)}`);
-        writeLogToFile('WARN', msg, ctx);
-    },
-    error: (msg, ctx = {}) => {
-        console.error(`[ERROR] ${new Date().toISOString()} | ${msg} | ${JSON.stringify(ctx)}`);
-        writeLogToFile('ERROR', msg, ctx);
-    }
-};
-
-let errorCountLastHour = 0;
-let errorCountResetAt = Date.now() + 3600000;
-
-function incrementErrorCount() {
-    const now = Date.now();
-    if (now > errorCountResetAt) {
-        errorCountLastHour = 0;
-        errorCountResetAt = now + 3600000;
-    }
-    errorCountLastHour++;
-}
-
-const PORT = process.env.PORT || 3000;
+// PORT and BACKEND_VERSION now imported from src/config/env and src/config/constants
 const SERVER_START_TIME = Date.now();
-const BACKEND_VERSION = '2.3.0';
 
-// ===============================
-// CORS CONFIG (ENHANCED)
-// ===============================
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://ethere4l.com';
-
-const ALLOWED_ORIGINS = [
-    'https://ethere4l.com',
-    'https://www.ethere4l.com',
-    'https://ethereal-frontend.netlify.app',
-    'http://localhost:5500',
-    'http://127.0.0.1:5500',
-    'http://localhost:3001',
-    'http://localhost:3000',
-    FRONTEND_URL
-].filter(Boolean);
-
-const UNIQUE_ORIGINS = [...new Set(ALLOWED_ORIGINS)];
-
-const corsOptions = {
-    origin: function(origin, callback) {
-        if (!origin) return callback(null, true);
-        if (UNIQUE_ORIGINS.indexOf(origin) !== -1) {
-            return callback(null, true);
-        }
-        logger.warn('CORS_BLOCKED', { origin });
-        return callback(null, false);
-    },
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
-    maxAge: 86400,
-    optionsSuccessStatus: 204
-};
+// corsOptions and UNIQUE_ORIGINS now imported from src/config/cors
 
 
 // =========================================================
@@ -444,7 +283,7 @@ app.set('trust proxy', 1);
 app.use(cors(corsOptions));
 
 // --- STEP 3: ✅ FIX 4: Add Vary header for proper CDN/proxy caching ---
-app.use(function(req, res, next) {
+app.use(function (req, res, next) {
     res.setHeader('Vary', 'Origin');
     next();
 });
@@ -532,11 +371,8 @@ const trackingLimiter = rateLimit({
 });
 
 // ===============================
-// RESEND CONFIG
+// RESEND CONFIG (RESEND_API_KEY, ADMIN_EMAIL, SENDER_EMAIL from src/config/env)
 // ===============================
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'ethere4lyfe@gmail.com';
-const SENDER_EMAIL = 'orders@ethere4l.com';
 
 let resend = null;
 if (RESEND_API_KEY) {
@@ -594,7 +430,7 @@ function verifyCustomerSession(req, res, next) {
 
         if (new Date() > new Date(session.expires_at)) {
             db.prepare(`DELETE FROM customer_sessions WHERE id = ?`)
-              .run(decoded.session_id);
+                .run(decoded.session_id);
             throw new Error('Session expired');
         }
 
@@ -670,10 +506,6 @@ app.get('/health', (req, res) => {
 // METRICS
 // ===============================
 app.get('/metrics', (req, res) => {
-    if (Date.now() > errorCountResetAt) {
-        errorCountLastHour = 0;
-        errorCountResetAt = Date.now() + 3600000;
-    }
 
     let pedidosHoy = 0;
     let totalVentasHoy = 0;
@@ -711,7 +543,7 @@ app.get('/metrics', (req, res) => {
         pedidosHoy,
         totalVentasHoy: Math.round(totalVentasHoy * 100) / 100,
         totalPedidos,
-        erroresUltimaHora: errorCountLastHour,
+        erroresUltimaHora: getErrorCountLastHour(),
         uptime: Math.floor((Date.now() - SERVER_START_TIME) / 1000),
         dbPersistent,
         version: BACKEND_VERSION,
@@ -722,7 +554,7 @@ app.get('/metrics', (req, res) => {
 // ===============================
 // ✅ FIX 3: CATALOG ENDPOINTS (NEW — for mobile resilience)
 // ===============================
-app.get('/api/catalogo', function(req, res) {
+app.get('/api/catalogo', function (req, res) {
     try {
         if (CATALOG_DB.length > 0) {
             return res.json(CATALOG_DB);
@@ -737,7 +569,7 @@ app.get('/api/catalogo', function(req, res) {
     }
 });
 
-app.get('/api/productos', function(req, res) {
+app.get('/api/productos', function (req, res) {
     try {
         if (PRODUCTS_DB.length > 0) {
             return res.json(PRODUCTS_DB);
@@ -795,7 +627,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
             }
         }
 
-        const tempOrderId = `ord_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+        const tempOrderId = `ord_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
         let lineItems = [];
         let pesoTotal = 0;
@@ -1173,7 +1005,7 @@ app.post('/api/session/logout', (req, res) => {
             const decoded = jwt.verify(token, JWT_SECRET);
             if (decoded.session_id) {
                 db.prepare(`DELETE FROM customer_sessions WHERE id = ?`)
-                  .run(decoded.session_id);
+                    .run(decoded.session_id);
                 logger.info('SESSION_REVOKED', { sessionId: decoded.session_id });
             }
         } catch (e) {
@@ -1317,7 +1149,7 @@ app.post('/api/admin/update-shipping', verifyToken, async (req, res) => {
     let history = [];
     try {
         history = order.shipping_history ? JSON.parse(order.shipping_history) : [];
-    } catch(e) { history = []; }
+    } catch (e) { history = []; }
 
     history.unshift({
         status,
@@ -1363,15 +1195,7 @@ app.post('/api/admin/update-shipping', verifyToken, async (req, res) => {
     res.json({ success: true });
 });
 
-function getStatusDescription(status) {
-    switch (status) {
-        case 'CONFIRMADO': return 'Pago confirmado, preparando pedido';
-        case 'EMPAQUETADO': return 'Pedido empaquetado';
-        case 'EN_TRANSITO': return 'Pedido en camino';
-        case 'ENTREGADO': return 'Pedido entregado';
-        default: return '';
-    }
-}
+// getStatusDescription now imported from src/utils/helpers
 
 
 // ===============================
