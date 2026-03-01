@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Test Checkout ETHERE4L</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 60px;
+        }
+
+        input,
+        button {
+            padding: 12px;
+            font-size: 16px;
+            margin: 8px 0;
+        }
+
+        input {
+            width: 280px;
+        }
+
+        button {
+            cursor: pointer;
+            background: black;
+            color: white;
+            border: none;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Prueba Stripe - ETHERE4L</h2>
+
+    <input type="email" id="email" placeholder="ejemplo@gmail.com" required />
+    <br>
+    <button id="payBtn">Ir a Pagar</button>
+
+    <script>
+        async function checkout() {
+
+            const emailInput = document.getElementById("email").value.trim();
+            const button = document.getElementById("payBtn");
+
+            // Protección básica
+            if (!emailInput) {
+                alert("⚠️ Ingresa un correo primero.");
+                return;
+            }
+
+            button.innerText = "Procesando...";
+            button.disabled = true;
+
+            try {
+
+                const response = await fetch("http://localhost:3000/api/create-checkout-session", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        customer: {
+                            email: emailInput
+                        },
+                        items: [
+                            {
+                                id: "item-001",
+                                cantidad: 1
+                            }
+                        ]
+                    })
+                });
+
+                const data = await response.json();
+
+                console.log("RESPUESTA BACKEND:", data);
+
+                if (!response.ok) {
+                    throw new Error(data.error || "Error desconocido");
+                }
+
+                if (data.url) {
+                    window.location.assign(data.url);
+                } else {
+                    throw new Error("No se recibió URL de Stripe.");
+                }
+
+            } catch (error) {
+
+                console.error("ERROR:", error);
+                alert("Error: " + error.message);
+
+                button.innerText = "Ir a Pagar";
+                button.disabled = false;
+            }
+        }
+
+        document.getElementById("payBtn").addEventListener("click", checkout);
+    </script>
+
+</body>
+
+</html>

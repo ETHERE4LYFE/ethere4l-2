@@ -1,0 +1,107 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  nombre    String?
+  telefono  String?
+  direccion String?
+  ciudad    String?
+  estado    String?
+  cp        String?
+  role      String   @default("CUSTOMER") // "ADMIN" or "CUSTOMER"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders           Order[]
+}
+
+model CustomerSession {
+  id         String   @id @default(uuid())
+  email      String
+  tokenHash  String
+  expiresAt  DateTime
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([email])
+}
+
+model Product {
+  id          String   @id
+  nombre      String
+  precio      Float
+  talla       String?
+  imagen      String?
+  peso        Float?
+  descripcion String?
+  
+  stock       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems  OrderItem[]
+  reservations InventoryReservation[]
+}
+
+model Order {
+  id              String   @id @default(uuid())
+  email           String
+  status          String   @default("PENDIENTE") // PENDIENTE, PAGADO, EXPIRADO
+  paymentRef      String?
+  confirmedBy     String?
+  trackingNumber  String?
+  shippingCost    Float?   @default(0)
+  shippingStatus  String   @default("CONFIRMADO") // CONFIRMADO, EMPAQUETADO, EN_TRANSITO, ENTREGADO
+  shippingHistory String?  // Storing stringified JSON for history, or we could make it a separate model, string is okay for now based on old logic
+  carrierCode     String?
+  data            String?  @db.Text
+  notas           String?
+  paidAt          DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User?     @relation(fields: [email], references: [email])
+  items           OrderItem[]
+  
+  @@index([email])
+  @@index([status])
+  @@index([paymentRef])
+  @@unique([paymentRef])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  productId String
+  cantidad  Int
+  precio    Float
+
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+  
+  @@index([orderId])
+  @@index([productId])
+}
+
+model InventoryReservation {
+  id        String   @id @default(uuid())
+  productId String
+  qty       Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+}

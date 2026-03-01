@@ -1,0 +1,54 @@
+# =========================================================
+# ETHERE4L Backend — Docker Compose
+# =========================================================
+# Local development & production deployment
+# SQLite data persisted via volume mount
+# =========================================================
+
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ethere4l-backend
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_PASS_HASH=${ADMIN_PASS_HASH}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-ethere4lyfe@gmail.com}
+      - FRONTEND_URL=${FRONTEND_URL:-https://ethere4l.com}
+      - COOKIE_DOMAIN=${COOKIE_DOMAIN}
+      - DATABASE_URL=postgresql://ethere4l:strongpassword@postgres:5432/ethere4l_db
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health" ]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: ethere4l-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ethere4l
+      POSTGRES_PASSWORD: strongpassword
+      POSTGRES_DB: ethere4l_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

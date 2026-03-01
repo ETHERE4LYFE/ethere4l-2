@@ -1,0 +1,39 @@
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Version control
+.git
+.gitignore
+
+# Environment (secrets)
+.env
+.env.*
+
+# Data (mounted as volume)
+data/
+logs/
+
+# Development files
+baseline_snapshots/
+tests/
+*.test.js
+*.spec.js
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation
+README.md
+*.md
+!src/**/*.md

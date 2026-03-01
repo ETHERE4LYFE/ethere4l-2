@@ -5,19 +5,22 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@prisma/client": "5.0.0",
     "axios": "^1.13.4",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^9.6.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
     "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "pdfkit": "^0.13.0",
+    "prisma": "5.0.0",
     "qrcode": "^1.5.4",
     "resend": "^2.1.0",
-    "stripe": "^20.3.0"
+    "stripe": "^20.3.0",
+    "zod": "^4.3.6"
   },
   "engines": {
     "node": ">=18.0.0"
