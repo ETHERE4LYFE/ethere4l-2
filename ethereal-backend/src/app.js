@@ -103,7 +103,7 @@ app.use(requestLogger);
 // =========================================================
 // 11. ROUTES
 // =========================================================
-app.use(healthRoutes);
+app.use('/', healthRoutes);
 app.use(productRoutes);
 app.use(paymentRoutes);
 app.use(orderRoutes);
