@@ -5,24 +5,26 @@
 const { db, dbPersistent } = require('../database');
 const { BACKEND_VERSION } = require('../config/constants');
 const { UNIQUE_ORIGINS } = require('../config/cors');
-const { RESEND_API_KEY, COOKIE_DOMAIN } = require('../config/env');
+const { RESEND_API_KEY, COOKIE_DOMAIN, ENABLE_METRICS } = require('../config/env');
 const { logger, getErrorCountLastHour } = require('../utils/logger');
 const { parseSafeNumber } = require('../utils/helpers');
+const { register } = require('../utils/metrics');
 
 // Injected at startup
 let SERVER_START_TIME = Date.now();
 
 function setStartTime(t) { SERVER_START_TIME = t; }
 
-function getRoot(req, res) {
+function getHealthLive(req, res) {
+    // Pure liveness probe, NO database checks
     res.json({
         status: 'online',
         service: 'ETHERE4L Backend v' + BACKEND_VERSION,
-        mode: 'PostgreSQL + Prisma + Stripe + Auth'
+        uptime: Math.floor((Date.now() - SERVER_START_TIME) / 1000)
     });
 }
 
-async function getHealth(req, res) {
+async function getHealthReady(req, res) {
     let dbStatus = 'error';
     try {
         if (dbPersistent) {
@@ -55,6 +57,37 @@ async function getHealth(req, res) {
         cookieDomain: COOKIE_DOMAIN || 'not set',
         timestamp: new Date().toISOString()
     });
+}
+
+async function getHealthDeep(req, res) {
+    let dbStatus = 'error';
+
+    try {
+        if (dbPersistent) {
+            // DB Timeout enforcement via Promise.race
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000));
+            const query = db.$queryRawUnsafe('SELECT 1 as ok');
+            const test = await Promise.race([query, timeout]);
+
+            dbStatus = test && test[0].ok === 1 ? 'connected' : 'error';
+        }
+    } catch (e) {
+        dbStatus = 'error';
+        logger.error('HEALTH_DEEP_DB_TIMEOUT', { error: e.message });
+    }
+
+    const payload = {
+        dbStatus,
+        dbPersistent,
+        timestamp: new Date().toISOString(),
+        memory: process.memoryUsage()
+    };
+
+    if (dbStatus !== 'connected') {
+        return res.status(503).json({ ...payload, error: 'Database unreachable' });
+    }
+
+    res.json(payload);
 }
 
 async function getMetrics(req, res) {
@@ -104,4 +137,16 @@ async function getMetrics(req, res) {
     });
 }
 
-module.exports = { getRoot, getHealth, getMetrics, setStartTime };
+async function getPrometheusMetrics(req, res) {
+    if (!ENABLE_METRICS) {
+        return res.status(404).send('Metrics disabled');
+    }
+    try {
+        res.set('Content-Type', register.contentType);
+        res.end(await register.metrics());
+    } catch (ex) {
+        res.status(500).end(ex.message);
+    }
+}
+
+module.exports = { getHealthLive, getHealthReady, getHealthDeep, getMetrics, getPrometheusMetrics, setStartTime };

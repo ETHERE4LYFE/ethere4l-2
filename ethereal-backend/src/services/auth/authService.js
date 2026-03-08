@@ -6,6 +6,7 @@
 
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { randomUUID: uuidv4 } = require('crypto');
 const { JWT_SECRET } = require('../../config/env');
 const { CUSTOMER_SESSION_DAYS } = require('../../config/constants');
@@ -38,33 +39,41 @@ async function validateAdmin(password) {
 }
 
 async function createCustomerSession(email, userAgent, ip) {
-    const sessionId = uuidv4();
+    // 1. Find or create user
+    let user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+        user = await prisma.user.create({ data: { email } });
+    }
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + CUSTOMER_SESSION_DAYS);
+    // 2. Generate Tokens
+    const accessToken = jwt.sign(
+        { email, userId: user.id, role: user.role, scope: 'customer' },
+        JWT_SECRET,
+        { expiresIn: '15m' }
+    );
 
-    const payload = {
-        email,
-        session_id: sessionId,
-        scope: 'customer'
-    };
+    const refreshToken = crypto.randomBytes(64).toString('hex');
+    const hashedRefreshToken = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
-    const token = jwt.sign(payload, JWT_SECRET, {
-        expiresIn: `${CUSTOMER_SESSION_DAYS}d`
-    });
+    const dtExpires = new Date();
+    dtExpires.setDate(dtExpires.getDate() + CUSTOMER_SESSION_DAYS);
 
-    await prisma.customerSession.create({
+    // 3. Store new session
+    const session = await prisma.session.create({
         data: {
-            id: sessionId,
-            email,
-            tokenHash: hashToken(token),
-            expiresAt,
+            userId: user.id,
+            refreshToken: hashedRefreshToken,
             userAgent: userAgent || '',
-            ip
+            ipAddress: ip || '',
+            expiresAt: dtExpires
         }
     });
 
-    return token;
+    return {
+        accessToken,
+        refreshToken,
+        sessionId: session.id
+    };
 }
 
 function verifyMagicToken(token) {
@@ -87,20 +96,85 @@ function verifyOrderToken(token) {
     return jwt.verify(token, JWT_SECRET);
 }
 
-async function revokeSession(token) {
+async function revokeSession(refreshTokenRaw) {
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        if (decoded.session_id) {
-            await prisma.customerSession.deleteMany({
-                where: { id: decoded.session_id }
-            });
-            logger.info('SESSION_REVOKED', { sessionId: decoded.session_id });
-            return true;
-        }
+        if (!refreshTokenRaw) return false;
+        const hashedToken = crypto.createHash('sha256').update(refreshTokenRaw).digest('hex');
+
+        await prisma.session.update({
+            where: { refreshToken: hashedToken },
+            data: { isRevoked: true }
+        });
+        logger.info('SESSION_REVOKED', { tokenHash: hashedToken.substring(0, 8) });
+        return true;
     } catch (e) {
-        // Token might be expired/invalid — still clear the cookie
+        return false;
     }
-    return false;
+}
+
+async function refreshSession(refreshTokenRaw, userAgent, ip) {
+    const hashedIncoming = crypto.createHash('sha256').update(refreshTokenRaw).digest('hex');
+
+    const session = await prisma.session.findUnique({
+        where: { refreshToken: hashedIncoming },
+        include: { user: true }
+    });
+
+    // Validations
+    if (!session) throw new Error('Invalid refresh token');
+
+    if (session.isRevoked) {
+        // Token Reuse Detected: Revoke ALL sessions for user
+        await prisma.session.updateMany({
+            where: { userId: session.userId },
+            data: { isRevoked: true }
+        });
+        logger.warn('COMPROMISED_TOKEN_REUSE', { userId: session.userId });
+        throw new Error('Compromised session detected');
+    }
+
+    if (new Date() > session.expiresAt) {
+        await prisma.session.update({
+            where: { id: session.id },
+            data: { isRevoked: true }
+        });
+        throw new Error('Refresh token expired');
+    }
+
+    // Valid -> Rotate
+    const newRefreshToken = crypto.randomBytes(64).toString('hex');
+    const newHashedToken = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
+
+    const newAccessToken = jwt.sign(
+        { email: session.user.email, userId: session.userId, role: session.user.role, scope: 'customer' },
+        JWT_SECRET,
+        { expiresIn: '15m' }
+    );
+
+    const dtExpires = new Date();
+    dtExpires.setDate(dtExpires.getDate() + CUSTOMER_SESSION_DAYS);
+
+    // Revoke old, create new
+    await prisma.$transaction([
+        prisma.session.update({
+            where: { id: session.id },
+            data: { isRevoked: true }
+        }),
+        prisma.session.create({
+            data: {
+                userId: session.userId,
+                refreshToken: newHashedToken,
+                userAgent: userAgent || session.userAgent,
+                ipAddress: ip || session.ipAddress,
+                expiresAt: dtExpires
+            }
+        })
+    ]);
+
+    return {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken
+    };
 }
 
 module.exports = {
@@ -109,5 +183,6 @@ module.exports = {
     verifyMagicToken,
     createMagicToken,
     verifyOrderToken,
-    revokeSession
+    revokeSession,
+    refreshSession
 };

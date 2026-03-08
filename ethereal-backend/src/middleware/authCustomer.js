@@ -8,12 +8,10 @@
 
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require('../config/env');
-const { COOKIE_NAME, getClearCookieOptions } = require('../config/cookie');
-const { hashToken } = require('../utils/helpers');
-const { db } = require('../database');
+const { ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME, getClearCookieOptions } = require('../config/cookie');
 
 function verifyCustomerSession(req, res, next) {
-    let token = req.cookies[COOKIE_NAME];
+    let token = req.cookies[ACCESS_COOKIE_NAME];
 
     if (!token) {
         const auth = req.headers.authorization;
@@ -33,32 +31,18 @@ function verifyCustomerSession(req, res, next) {
             return res.sendStatus(403);
         }
 
-        const session = db.prepare(`
-            SELECT * FROM customer_sessions WHERE id = ?
-        `).get(decoded.session_id);
-
-        if (!session) throw new Error('Session revoked');
-
-        if (new Date() > new Date(session.expires_at)) {
-            db.prepare(`DELETE FROM customer_sessions WHERE id = ?`)
-                .run(decoded.session_id);
-            throw new Error('Session expired');
-        }
-
-        if (hashToken(token) !== session.token_hash) {
-            throw new Error('Token mismatch');
-        }
-
         req.customer = {
-            email: session.email,
-            session_id: session.id
+            email: decoded.email,
+            userId: decoded.userId,
+            role: decoded.role || 'CUSTOMER'
         };
 
         next();
 
     } catch (e) {
-        res.clearCookie(COOKIE_NAME, getClearCookieOptions());
-        return res.sendStatus(403);
+        // If access token is expired, we don't automatically clear cookies here, Let the client call /refresh
+        // If we clear them here, the frontend loses the refresh token before it gets a chance to use it.
+        return res.sendStatus(401);
     }
 }
 

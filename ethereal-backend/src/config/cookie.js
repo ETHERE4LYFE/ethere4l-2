@@ -7,7 +7,8 @@
 
 const { IS_PRODUCTION, COOKIE_DOMAIN } = require('./env');
 
-const COOKIE_NAME = 'ethere4l_session';
+const ACCESS_COOKIE_NAME = 'ethere4l_access';
+const REFRESH_COOKIE_NAME = 'ethere4l_refresh';
 
 function getSessionCookieOptions(maxAgeDays) {
     var options = {
@@ -41,7 +42,8 @@ function getClearCookieOptions() {
 }
 
 module.exports = {
-    COOKIE_NAME,
+    ACCESS_COOKIE_NAME,
+    REFRESH_COOKIE_NAME,
     getSessionCookieOptions,
     getClearCookieOptions
 };

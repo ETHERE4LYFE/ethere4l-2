@@ -25,6 +25,7 @@ require('./database');
 // =========================================================
 const { securityHeaders } = require('./middleware/security');
 const { requestLogger } = require('./middleware/requestLogger');
+const { adaptiveAbuseGuard } = require('./middleware/adaptiveAbuse');
 const { globalLimiter } = require('./middleware/rateLimiters');
 const { corsErrorHandler, globalErrorHandler } = require('./middleware/errorHandler');
 
@@ -37,6 +38,7 @@ const productRoutes = require('./routes/productRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const adminRbacRoutes = require('./routes/adminRbacRoutes');
 const authRoutes = require('./routes/authRoutes');
 
 // =========================================================
@@ -100,6 +102,9 @@ app.use(globalLimiter);
 // 10. Request correlation & logging
 app.use(requestLogger);
 
+// 10.5. Adaptive Abuse Engine (Phase 13)
+app.use(adaptiveAbuseGuard);
+
 // =========================================================
 // 11. ROUTES
 // =========================================================
@@ -108,6 +113,7 @@ app.use(productRoutes);
 app.use(paymentRoutes);
 app.use(orderRoutes);
 app.use(adminRoutes);
+app.use(adminRbacRoutes);
 app.use(authRoutes);
 
 // =========================================================

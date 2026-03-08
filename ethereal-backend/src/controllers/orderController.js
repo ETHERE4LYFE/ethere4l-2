@@ -6,6 +6,8 @@ const orderService = require('../services/orders/orderService');
 const authService = require('../services/auth/authService');
 const { dbPersistent } = require('../database');
 const { generateOrderToken } = require('../utils/helpers');
+const prisma = require('../database/prismaClient');
+const { logger } = require('../utils/logger');
 
 async function trackOrder(req, res) {
     const { orderId } = req.params;
@@ -119,4 +121,111 @@ async function getMyOrders(req, res) {
     }
 }
 
-module.exports = { trackOrder, getCustomerOrders, getMyOrders };
+// ---------------------------------------------------------
+// Authenticated Order List (HttpOnly cookie session)
+// GET /api/orders
+// ---------------------------------------------------------
+async function getAuthenticatedOrders(req, res) {
+    try {
+        const email = req.customer.email.toLowerCase();
+
+        const orders = await prisma.order.findMany({
+            where: { email: { equals: email, mode: 'insensitive' } },
+            orderBy: { createdAt: 'desc' },
+            select: {
+                id: true,
+                status: true,
+                createdAt: true,
+                data: true,
+                items: { select: { id: true } }
+            }
+        });
+
+        const result = orders.map(o => {
+            let total = 0;
+            try {
+                const parsed = JSON.parse(o.data);
+                total = parsed.pedido?.total || 0;
+            } catch { /* default 0 */ }
+
+            return {
+                id: o.id,
+                status: o.status,
+                totalAmount: total,
+                currency: 'mxn',
+                createdAt: o.createdAt.toISOString(),
+                itemCount: o.items.length
+            };
+        });
+
+        res.json({ orders: result });
+    } catch (err) {
+        logger.error('AUTH_ORDERS_LIST_ERROR', { error: err.message });
+        res.status(500).json({ error: 'Error fetching orders' });
+    }
+}
+
+// ---------------------------------------------------------
+// Authenticated Order Detail (HttpOnly cookie session)
+// GET /api/orders/:orderId
+// ---------------------------------------------------------
+async function getAuthenticatedOrderById(req, res) {
+    try {
+        const email = req.customer.email.toLowerCase();
+        const { orderId } = req.params;
+
+        const order = await prisma.order.findFirst({
+            where: {
+                id: orderId,
+                email: { equals: email, mode: 'insensitive' }
+            },
+            select: {
+                id: true,
+                status: true,
+                createdAt: true,
+                data: true,
+                items: {
+                    select: {
+                        cantidad: true,
+                        precio: true,
+                        product: {
+                            select: { id: true, nombre: true, imagen: true }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        let total = 0;
+        try {
+            const parsed = JSON.parse(order.data);
+            total = parsed.pedido?.total || 0;
+        } catch { /* default 0 */ }
+
+        res.json({
+            id: order.id,
+            status: order.status,
+            totalAmount: total,
+            currency: 'mxn',
+            createdAt: order.createdAt.toISOString(),
+            items: order.items.map(item => ({
+                quantity: item.cantidad,
+                price: item.precio,
+                product: {
+                    id: item.product.id,
+                    name: item.product.nombre,
+                    imageUrl: item.product.imagen
+                }
+            }))
+        });
+    } catch (err) {
+        logger.error('AUTH_ORDER_DETAIL_ERROR', { error: err.message });
+        res.status(500).json({ error: 'Error fetching order' });
+    }
+}
+
+module.exports = { trackOrder, getCustomerOrders, getMyOrders, getAuthenticatedOrders, getAuthenticatedOrderById };

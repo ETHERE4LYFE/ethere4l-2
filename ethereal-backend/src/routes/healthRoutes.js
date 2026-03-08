@@ -19,26 +19,29 @@ const healthController = require('../controllers/healthController');
 // ---------------------------------------------------------
 // Simple confirmation that API is alive
 // Example: GET http://localhost:4000/
-router.get('/', healthController.getRoot);
+router.get('/', healthController.getHealthLive);
 
 // ---------------------------------------------------------
-// Health Check Endpoint
+// Liveness Check Endpoint (Native Docker Healthcheck)
 // ---------------------------------------------------------
-// Used by:
-//   - Docker healthcheck
-//   - Railway / Render / Load balancers
-//   - Uptime monitoring services
-//
-// Example: GET http://localhost:4000/health
-router.get('/health', healthController.getHealth);
+router.get('/health/live', healthController.getHealthLive);
 
 // ---------------------------------------------------------
-// Metrics Endpoint
+// Readiness Check Endpoint (Load Balancers)
+// ---------------------------------------------------------
+router.get('/health/ready', healthController.getHealthReady);
+
+// Used by strict uptime monitoring (UptimeRobot) with DB timeouts
+router.get('/health/deep', healthController.getHealthDeep);
+
+// ---------------------------------------------------------
+// Metrics Endpoints
 // ---------------------------------------------------------
 // Lightweight operational metrics (uptime, memory, etc)
-// NOT Prometheus full integration (yet)
-//
+router.get('/metrics/basic', healthController.getMetrics);
+
+// Full Prometheus metrics
 // Example: GET http://localhost:4000/metrics
-router.get('/metrics', healthController.getMetrics);
+router.get('/metrics', healthController.getPrometheusMetrics);
 
 module.exports = router;

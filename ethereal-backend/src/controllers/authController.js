@@ -5,14 +5,15 @@
 const authService = require('../services/auth/authService');
 const emailService = require('../services/email/emailService');
 const customerService = require('../services/customers/customerService');
-const { COOKIE_NAME, getSessionCookieOptions, getClearCookieOptions } = require('../config/cookie');
+const { ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME, getSessionCookieOptions, getClearCookieOptions } = require('../config/cookie');
 const { CUSTOMER_SESSION_DAYS } = require('../config/constants');
 const { FRONTEND_URL } = require('../config/env');
 const { logger } = require('../utils/logger');
+const { reportLoginFailure } = require('../middleware/adaptiveAbuse');
 
 async function sendMagicLink(req, res) {
     try {
-        const { email } = req.body;
+        const { email } = req.validatedBody;
         const cleanEmail = String(email || '').trim().toLowerCase();
 
         if (!cleanEmail || !cleanEmail.includes('@')) {
@@ -49,26 +50,56 @@ async function startSession(req, res) {
 
     try {
         const decoded = authService.verifyMagicToken(token);
-        const customerToken = await authService.createCustomerSession(decoded.email, req.headers['user-agent'] || '', req.ip);
+        const { accessToken, refreshToken } = await authService.createCustomerSession(decoded.email, req.headers['user-agent'] || '', req.ip);
 
-        res.cookie(COOKIE_NAME, customerToken, getSessionCookieOptions(CUSTOMER_SESSION_DAYS));
+        // Access token (15 minutes) - maxAge passed in days, so we override for access token specifically
+        const accessOptions = { ...getSessionCookieOptions(CUSTOMER_SESSION_DAYS), maxAge: 15 * 60 * 1000 };
+        res.cookie(ACCESS_COOKIE_NAME, accessToken, accessOptions);
+
+        // Refresh token (7 days)
+        res.cookie(REFRESH_COOKIE_NAME, refreshToken, getSessionCookieOptions(CUSTOMER_SESSION_DAYS));
+
         logger.info('SESSION_STARTED_COOKIE', { email: decoded.email });
 
         res.json({ success: true, email: decoded.email });
 
     } catch (e) {
         logger.warn('SESSION_START_FAILED', { error: e.message });
+        await reportLoginFailure(req);
         res.sendStatus(403);
     }
 }
 
-async function logout(req, res) {
-    const token = req.cookies ? req.cookies[COOKIE_NAME] : null;
-    if (token) {
-        await authService.revokeSession(token);
+async function refreshSession(req, res) {
+    const refreshToken = req.cookies ? req.cookies[REFRESH_COOKIE_NAME] : null;
+    if (!refreshToken) return res.status(401).json({ error: 'No refresh token provided' });
+
+    try {
+        const { accessToken, refreshToken: newRefreshToken } = await authService.refreshSession(refreshToken, req.headers['user-agent'] || '', req.ip);
+
+        // Set new cookies
+        const accessOptions = { ...getSessionCookieOptions(CUSTOMER_SESSION_DAYS), maxAge: 15 * 60 * 1000 };
+        res.cookie(ACCESS_COOKIE_NAME, accessToken, accessOptions);
+        res.cookie(REFRESH_COOKIE_NAME, newRefreshToken, getSessionCookieOptions(CUSTOMER_SESSION_DAYS));
+
+        res.json({ success: true });
+    } catch (e) {
+        logger.warn('REFRESH_FAILED', { error: e.message });
+        res.clearCookie(ACCESS_COOKIE_NAME, getClearCookieOptions());
+        res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions());
+        res.status(403).json({ error: 'Invalid or expired refresh token' });
     }
-    res.clearCookie(COOKIE_NAME, getClearCookieOptions());
+}
+
+async function logout(req, res) {
+    const refreshToken = req.cookies ? req.cookies[REFRESH_COOKIE_NAME] : null;
+    if (refreshToken) {
+        await authService.revokeSession(refreshToken);
+    }
+
+    res.clearCookie(ACCESS_COOKIE_NAME, getClearCookieOptions());
+    res.clearCookie(REFRESH_COOKIE_NAME, getClearCookieOptions());
     res.json({ success: true });
 }
 
-module.exports = { sendMagicLink, startSession, logout };
+module.exports = { sendMagicLink, startSession, refreshSession, logout };

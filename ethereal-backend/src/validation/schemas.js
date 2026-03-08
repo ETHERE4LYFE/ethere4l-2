@@ -16,10 +16,10 @@ const magicLinkSchema = z.object({
 
 // --- Checkout Item ---
 const checkoutItemSchema = z.object({
-    id: z.union([z.string(), z.number()]),
+    id: z.union([z.string().min(1), z.number().int().positive()]),
     nombre: z.string().optional(),
     precio: z.number().optional(),
-    cantidad: z.union([z.number(), z.string()]),
+    cantidad: z.coerce.number().int().positive(),
     talla: z.string().optional(),
     imagen: z.string().optional(),
     peso: z.number().optional()

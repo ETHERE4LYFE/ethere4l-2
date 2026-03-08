@@ -10,12 +10,14 @@ const { parseSafeNumber } = require('../../utils/helpers');
 // Now importing Prisma client
 const prisma = require('../../database/prismaClient');
 
+const RESERVATION_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
 async function checkStock(items) {
     for (const item of items) {
         const cantidadLimpia = parseSafeNumber(item.cantidad, 1);
         const inventoryRow = await prisma.product.findUnique({
             where: { id: String(item.id) },
-            select: { stock: true, reservations: { select: { qty: true } } }
+            select: { stock: true, reservations: { where: { status: 'ACTIVE' }, select: { qty: true } } }
         });
 
         if (inventoryRow) {
@@ -43,7 +45,7 @@ async function reserveStock(items, tx) {
         const cantidadLimpia = parseSafeNumber(item.cantidad, 1);
         const inv = await tx.product.findUnique({
             where: { id: String(item.id) },
-            select: { stock: true, reservations: { select: { qty: true } } }
+            select: { stock: true, reservations: { where: { status: 'ACTIVE' }, select: { qty: true } } }
         });
 
         if (inv) {
@@ -55,13 +57,17 @@ async function reserveStock(items, tx) {
         }
     }
 
+    const expiresAt = new Date(Date.now() + RESERVATION_TTL_MS);
+
     // Process reservations transactionally within the provided tx
     for (const item of items) {
         const cantidadLimpia = parseSafeNumber(item.cantidad, 1);
         await tx.inventoryReservation.create({
             data: {
                 productId: String(item.id),
-                qty: cantidadLimpia
+                qty: cantidadLimpia,
+                status: 'ACTIVE',
+                expiresAt
             }
         });
     }
@@ -80,28 +86,15 @@ async function confirmStock(items, tx) {
         });
     }
 
-    // 2. Resolve the reservations
+    // 2. Mark reservations as COMPLETED (not deleted, for audit trail)
     for (const item of items) {
-        const qty = parseSafeNumber(item.cantidad, 1);
-        const res = await tx.inventoryReservation.findMany({
-            where: { productId: String(item.id) },
-            orderBy: { createdAt: 'asc' }
+        await tx.inventoryReservation.updateMany({
+            where: {
+                productId: String(item.id),
+                status: 'ACTIVE'
+            },
+            data: { status: 'COMPLETED' }
         });
-
-        let toDeleteQty = qty;
-        for (const r of res) {
-            if (toDeleteQty <= 0) break;
-            if (r.qty <= toDeleteQty) {
-                await tx.inventoryReservation.delete({ where: { id: r.id } });
-                toDeleteQty -= r.qty;
-            } else {
-                await tx.inventoryReservation.update({
-                    where: { id: r.id },
-                    data: { qty: { decrement: toDeleteQty } }
-                });
-                toDeleteQty = 0;
-            }
-        }
     }
 }
 

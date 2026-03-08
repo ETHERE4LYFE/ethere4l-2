@@ -4,12 +4,14 @@ datasource db {
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl"]
 }
 
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
+  password  String?
   nombre    String?
   telefono  String?
   direccion String?
@@ -21,6 +23,22 @@ model User {
   updatedAt DateTime @updatedAt
 
   orders           Order[]
+  sessions         Session[]
+}
+
+model Session {
+  id            String   @id @default(uuid())
+  userId        String
+  refreshToken  String   @unique
+  ipAddress     String?
+  userAgent     String?
+  isRevoked     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model CustomerSession {
@@ -98,10 +116,14 @@ model InventoryReservation {
   id        String   @id @default(uuid())
   productId String
   qty       Int
+  status    String   @default("ACTIVE") // ACTIVE, COMPLETED, EXPIRED
+  expiresAt DateTime @default(now())
+  orderId   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   product   Product  @relation(fields: [productId], references: [id])
 
   @@index([productId])
+  @@index([status, expiresAt])
 }

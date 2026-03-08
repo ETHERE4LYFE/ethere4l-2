@@ -2,7 +2,9 @@
   "name": "ethereal-backend",
   "version": "1.0.0",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "make-admin": "node scripts/makeAdmin.js",
+    "seed-admin": "node scripts/forceAdminSeed.js"
   },
   "dependencies": {
     "@prisma/client": "5.0.0",
@@ -15,8 +17,10 @@
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
+    "lru-cache": "^11.2.6",
     "pdfkit": "^0.13.0",
     "prisma": "5.0.0",
+    "prom-client": "^15.1.3",
     "qrcode": "^1.5.4",
     "resend": "^2.1.0",
     "stripe": "^20.3.0",

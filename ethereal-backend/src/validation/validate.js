@@ -2,32 +2,30 @@
 // MIDDLEWARE: validate(schema) — Zod validation middleware
 // =========================================================
 
-const { ZodError } = require('zod');
-
-/**
- * Creates Express middleware that validates req.body against a Zod schema.
- * @param {import('zod').ZodSchema} schema - Zod schema to validate against
- * @param {'body'|'params'|'query'} source - Request property to validate
- */
 function validate(schema, source = 'body') {
     return (req, res, next) => {
-        try {
-            const data = schema.parse(req[source]);
-            req[source] = data; // Replace with parsed/cleaned data
-            next();
-        } catch (err) {
-            if (err instanceof ZodError) {
-                const messages = err.errors.map(e => e.message).join(', ');
-                return res.status(400).json({
-                    error: messages,
-                    details: err.errors.map(e => ({
-                        field: e.path.join('.'),
-                        message: e.message
-                    }))
-                });
-            }
-            next(err);
+        const result = schema.safeParse(req[source]);
+
+        if (!result.success) {
+            return res.status(400).json({
+                error: "Invalid request payload",
+                details: result.error.issues.map(issue => ({
+                    field: issue.path.join('.'),
+                    message: issue.message
+                }))
+            });
         }
+
+        // Attach sanitized data WITHOUT mutating original request
+        if (source === 'body') {
+            req.validatedBody = result.data;
+        } else if (source === 'params') {
+            req.validatedParams = result.data;
+        } else if (source === 'query') {
+            req.validatedQuery = result.data;
+        }
+
+        return next();
     };
 }
 

@@ -9,6 +9,7 @@ const ALLOWED_ORIGINS = [
     'https://ethere4l.com',
     'https://www.ethere4l.com',
     'https://ethereal-frontend.netlify.app',
+    'https://ethere4l.vercel.app',
     'http://localhost:5500',
     'http://127.0.0.1:5500',
     'http://localhost:3001',
@@ -20,14 +21,26 @@ const UNIQUE_ORIGINS = [...new Set(ALLOWED_ORIGINS)];
 
 const corsOptions = {
     origin: function (origin, callback) {
-        if (!origin) return callback(null, true);
+        // Enforce strict NO wildcard bypass in production.
+        const isProd = process.env.NODE_ENV === 'production';
+
+        if (!origin) {
+            // Postman / curl (server-to-server)
+            if (isProd) {
+                logger.warn('CORS_BLOCKED_NO_ORIGIN', { reason: 'No origin provided in production' });
+                return callback(null, false);
+            }
+            return callback(null, true);
+        }
+
         if (UNIQUE_ORIGINS.indexOf(origin) !== -1) {
             return callback(null, true);
         }
+
         logger.warn('CORS_BLOCKED', { origin });
         return callback(null, false);
     },
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
     maxAge: 86400,

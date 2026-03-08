@@ -11,6 +11,7 @@ const { magicLinkSchema } = require('../validation/schemas');
 
 router.post('/api/magic-link', magicLinkLimiter, validate(magicLinkSchema), authController.sendMagicLink);
 router.get('/api/session/start', authController.startSession);
+router.post('/api/auth/refresh', authController.refreshSession);
 router.post('/api/session/logout', authController.logout);
 
 module.exports = router;
