@@ -11,6 +11,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
+RUN apk add --no-cache openssl
 RUN npm ci --ignore-scripts=false
 
 COPY prisma/ ./prisma/
@@ -29,6 +30,7 @@ WORKDIR /app
 
 # Only copy prod dependencies (dramatically reduces size)
 COPY package.json package-lock.json ./
+RUN apk add --no-cache openssl
 RUN npm ci --omit=dev --ignore-scripts=false
 
 # Copy Prisma binaries generated from the builder stage
