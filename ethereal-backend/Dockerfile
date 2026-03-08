@@ -45,6 +45,9 @@ RUN mkdir -p logs && chown -R appuser:appgroup /app
 COPY server.js ./
 COPY src/ ./src/
 COPY scripts/ ./scripts/
+COPY utils/ ./utils/
+COPY assets/ ./assets/
+COPY fonts/ ./fonts/
 
 # Fix permissions for the explicitly copied files
 RUN chown -R appuser:appgroup /app
